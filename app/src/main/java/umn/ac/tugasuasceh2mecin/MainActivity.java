@@ -8,13 +8,27 @@ import android.nfc.NfcAdapter;
 import android.nfc.Tag;
 import android.nfc.tech.MifareClassic;
 import android.nfc.tech.MifareUltralight;
+import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.Parcelable;
 import android.provider.Settings;
 import android.support.v7.app.AppCompatActivity;
+import android.util.Log;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import java.io.BufferedOutputStream;
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.io.OutputStreamWriter;
+import java.net.HttpURLConnection;
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.net.URLEncoder;
 import java.util.List;
 
 import umn.ac.tugasuasceh2mecin.parser.NdefMessageParser;
@@ -24,13 +38,14 @@ public class MainActivity extends AppCompatActivity {
 
     private NfcAdapter nfcAdapter;
     private PendingIntent pendingIntent;
-    private TextView text;
+    private TextView text, rawData, nonNDEF;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-        text = (TextView) findViewById(R.id.text);
+        text = findViewById(R.id.text);
+        rawData = findViewById(R.id.rawData);
         nfcAdapter = NfcAdapter.getDefaultAdapter(this);
 
         if (nfcAdapter == null) {
@@ -69,6 +84,8 @@ public class MainActivity extends AppCompatActivity {
                 || NfcAdapter.ACTION_TECH_DISCOVERED.equals(action)
                 || NfcAdapter.ACTION_NDEF_DISCOVERED.equals(action)) {
             Parcelable[] rawMsgs = intent.getParcelableArrayExtra(NfcAdapter.EXTRA_NDEF_MESSAGES);
+
+            // Parcelable[] rawMsgs = intent.getParcelableArrayExtra(NfcAdapter.EXTRA_DATA);
             NdefMessage[] msgs;
 
             if (rawMsgs != null) {
@@ -76,16 +93,65 @@ public class MainActivity extends AppCompatActivity {
 
                 for (int i = 0; i < rawMsgs.length; i++) {
                     msgs[i] = (NdefMessage) rawMsgs[i];
+                    rawMsgs.toString();
                 }
-
             } else {
                 byte[] empty = new byte[0];
                 byte[] id = intent.getByteArrayExtra(NfcAdapter.EXTRA_ID);
                 Tag tag = (Tag) intent.getParcelableExtra(NfcAdapter.EXTRA_TAG);
+
                 byte[] payload = dumpTagData(tag).getBytes();
                 NdefRecord record = new NdefRecord(NdefRecord.TNF_UNKNOWN, empty, id, payload);
                 NdefMessage msg = new NdefMessage(new NdefRecord[] {record});
                 msgs = new NdefMessage[] {msg};
+
+                // Testing baca Raw data
+                MifareClassic test = MifareClassic.get(tag);
+                try{
+                    test.connect();
+                    int s_len = test.getSectorCount();
+                    if (test.isConnected()){
+
+                        for(int i=0; i < s_len; i++){
+                            boolean isAuthenticated = false;
+
+                            // Try to authenticate first
+                            if (test.authenticateSectorWithKeyA(i, MifareClassic.KEY_MIFARE_APPLICATION_DIRECTORY) ||
+                                    test.authenticateSectorWithKeyA(i, MifareClassic.KEY_DEFAULT) ||
+                                    test.authenticateSectorWithKeyA(i,MifareClassic.KEY_NFC_FORUM))
+                                isAuthenticated = true;
+                            else
+                                Log.d("TAG", "Authorization denied ");
+
+
+                            if(isAuthenticated) {
+                                int block_index = test.sectorToBlock(i);
+
+                                byte[] block = test.readBlock(block_index);
+                                Log.d("DATA", "Sector : " + i);
+
+                                Log.d("DATA", toHex(block));
+                            }
+                        }
+                    }
+
+                    String target_server = "http://10.20.10.115";
+
+                    //TODO: Structure the read bytes
+                    //new sendToServer().execute(target_server, builder.toString());
+
+                    test.close();
+                } catch (IOException e){
+                    e.printStackTrace();
+                } finally {
+                    if (test != null){
+                        try{
+                            test.close();
+                        } catch (IOException e){
+                            e.printStackTrace();
+                        }
+                    }
+                }
             }
 
             displayMsgs(msgs);
@@ -106,9 +172,79 @@ public class MainActivity extends AppCompatActivity {
             builder.append(str).append("\n");
         }
 
+        Log.d("TEST", builder.toString());
+
         text.setText(builder.toString());
     }
 
+    static class sendToServer extends AsyncTask<String, String, String>{
+        @Override
+        protected String doInBackground(String... strings) {
+            String targetURL = strings[0];
+            String payload = strings[1];
+
+            HttpURLConnection conn = null;
+            InputStream is = null;
+
+            try{
+                URL url = new URL(targetURL);
+                conn = (HttpURLConnection) url.openConnection();
+                conn.setChunkedStreamingMode(0);
+                conn.setRequestMethod("POST");
+                conn.setDoOutput(true);
+
+                OutputStream out = conn.getOutputStream();
+                BufferedWriter bw = new BufferedWriter(new OutputStreamWriter(out, "UTF-8"));
+
+                bw.write("testing=" + URLEncoder.encode(payload));
+                bw.flush();
+                bw.close();
+
+                out.close();
+
+                conn.connect();
+
+                Log.d("TEST", conn.getResponseCode() + " : " + conn.getResponseMessage());
+                Log.d("TEST", conn.getContent().toString());
+
+                if(conn.getResponseCode() == HttpURLConnection.HTTP_OK){
+                    Log.d("TEST", "Input Stream Get!");
+                    is = conn.getInputStream();
+                } else {
+                    Log.d("TEST", "ERROR STREAM!");
+                    is = conn.getErrorStream();
+                }
+
+            } catch (MalformedURLException eURL){
+                eURL.printStackTrace();
+            } catch (IOException eIO){
+                eIO.printStackTrace();
+            }
+
+            try {
+                BufferedReader reader = new BufferedReader(new InputStreamReader(
+                        is, "UTF-8"), 8);
+                StringBuilder sb = new StringBuilder();
+                String line = "";
+                while ((line = reader.readLine()) != null) {
+                    sb.append(line + "\n");
+                }
+                is.close();
+                String response = sb.toString();
+                Log.e("TEST", response);
+            } catch (Exception e) {
+                Log.e("Buffer Error", "Error converting result " + e.toString());
+            } finally {
+                if(conn != null)
+                    conn.disconnect();
+            }
+
+
+            return null;
+        }
+    }
+
+    // Open Settings to allow users to enable NFC
     private void showWirelessSettings() {
         Toast.makeText(this, "You need to enable NFC", Toast.LENGTH_SHORT).show();
         Intent intent = new Intent(Settings.ACTION_WIRELESS_SETTINGS);
@@ -118,10 +254,11 @@ public class MainActivity extends AppCompatActivity {
     private String dumpTagData(Tag tag) {
         StringBuilder sb = new StringBuilder();
         byte[] id = tag.getId();
+
         sb.append("ID (hex): ").append(toHex(id)).append('\n');
-        sb.append("ID (reversed hex): ").append(toReversedHex(id)).append('\n');
+//        sb.append("ID (reversed hex): ").append(toReversedHex(id)).append('\n');
         sb.append("ID (dec): ").append(toDec(id)).append('\n');
-        sb.append("ID (reversed dec): ").append(toReversedDec(id)).append('\n');
+//        sb.append("ID (reversed dec): ").append(toReversedDec(id)).append('\n');
 
         String prefix = "android.nfc.tech.";
         sb.append("Technologies: ");
@@ -204,19 +341,19 @@ public class MainActivity extends AppCompatActivity {
         return sb.toString();
     }
 
-    private String toReversedHex(byte[] bytes) {
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < bytes.length; ++i) {
-            if (i > 0) {
-                sb.append(" ");
-            }
-            int b = bytes[i] & 0xff;
-            if (b < 0x10)
-                sb.append('0');
-            sb.append(Integer.toHexString(b));
-        }
-        return sb.toString();
-    }
+//    private String toReversedHex(byte[] bytes) {
+//        StringBuilder sb = new StringBuilder();
+//        for (int i = 0; i < bytes.length; ++i) {
+//            if (i > 0) {
+//                sb.append(" ");
+//            }
+//            int b = bytes[i] & 0xff;
+//            if (b < 0x10)
+//                sb.append('0');
+//            sb.append(Integer.toHexString(b));
+//        }
+//        return sb.toString();
+//    }
 
     private long toDec(byte[] bytes) {
         long result = 0;
@@ -229,14 +366,14 @@ public class MainActivity extends AppCompatActivity {
         return result;
     }
 
-    private long toReversedDec(byte[] bytes) {
-        long result = 0;
-        long factor = 1;
-        for (int i = bytes.length - 1; i >= 0; --i) {
-            long value = bytes[i] & 0xffl;
-            result += value * factor;
-            factor *= 256l;
-        }
-        return result;
-    }
+//    private long toReversedDec(byte[] bytes) {
+//        long result = 0;
+//        long factor = 1;
+//        for (int i = bytes.length - 1; i >= 0; --i) {
+//            long value = bytes[i] & 0xffl;
+//            result += value * factor;
+//            factor *= 256l;
+//        }
+//        return result;
+//    }
 }
