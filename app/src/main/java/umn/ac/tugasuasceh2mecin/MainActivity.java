@@ -23,11 +23,8 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.net.HttpURLConnection;
@@ -82,7 +79,7 @@ public class MainActivity extends AppCompatActivity {
         });
 
         if (nfcAdapter == null) {
-            Toast.makeText(this, "No NFC", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "No NFC Detected, quitting...", Toast.LENGTH_LONG).show();
             finish();
             return;
         }
@@ -119,68 +116,62 @@ public class MainActivity extends AppCompatActivity {
     private void resolveIntent(Intent intent) {
         String action = intent.getAction();
 
-        if (NfcAdapter.ACTION_TAG_DISCOVERED.equals(action)
-                || NfcAdapter.ACTION_TECH_DISCOVERED.equals(action)
-                || NfcAdapter.ACTION_NDEF_DISCOVERED.equals(action)) {
+        if (NfcAdapter.ACTION_TAG_DISCOVERED.equals(action) ||
+            NfcAdapter.ACTION_TECH_DISCOVERED.equals(action) ||
+            NfcAdapter.ACTION_NDEF_DISCOVERED.equals(action)) {
             if(!writeMode){
                 savedData = new ArrayList<>();
-                Parcelable[] rawMsgs = intent.getParcelableArrayExtra(NfcAdapter.EXTRA_NDEF_MESSAGES);
-                NdefMessage[] msgs;
+                Parcelable[] rawMessages = intent.getParcelableArrayExtra(NfcAdapter.EXTRA_NDEF_MESSAGES);
+                NdefMessage[] messages;
 
-                if (rawMsgs != null) {
-                    msgs = new NdefMessage[rawMsgs.length];
+                if (rawMessages != null) {
+                    messages = new NdefMessage[rawMessages.length];
 
-                    for (int i = 0; i < rawMsgs.length; i++) {
-                        msgs[i] = (NdefMessage) rawMsgs[i];
-                        rawMsgs.toString();
-                    }
-                } else {
-                    byte[] empty = new byte[0];
-                    byte[] id = intent.getByteArrayExtra(NfcAdapter.EXTRA_ID);
+                    for (int i = 0; i < rawMessages.length; i++)
+                        messages[i] = (NdefMessage) rawMessages[i];
+                }
+                else {
+                    byte[] emptyByte = new byte[0];
+                    byte[] cardId = intent.getByteArrayExtra(NfcAdapter.EXTRA_ID);
                     cardTag = intent.getParcelableExtra(NfcAdapter.EXTRA_TAG);
 
                     byte[] payload = dumpTagData().getBytes();
-                    NdefRecord record = new NdefRecord(NdefRecord.TNF_UNKNOWN, empty, id, payload);
-                    NdefMessage msg = new NdefMessage(new NdefRecord[] {record});
-                    msgs = new NdefMessage[] {msg};
+                    NdefRecord record = new NdefRecord(NdefRecord.TNF_UNKNOWN, emptyByte, cardId, payload);
+                    NdefMessage message = new NdefMessage(new NdefRecord[] {record});
+                    messages = new NdefMessage[] {message};
                 }
 
-                displayMsgs(msgs);
+                displayMsgs(messages);
             }
             else{
                 Tag temp = intent.getParcelableExtra(NfcAdapter.EXTRA_TAG);
                 MifareClassic mifareTag = MifareClassic.get(temp);
 
+                // TODO: Reimplement R&W For All Blocks instead of Sectors
                 try{
                     mifareTag.connect();
                     if (mifareTag.isConnected()){
-                        int s_len = mifareTag.getSectorCount();
+                        int sectorCount = mifareTag.getSectorCount();
 
-                        for(int i = 0; i < s_len; i++){
-                            boolean isAuthenticated = false;
+                        for(int i = 0; i < sectorCount; i++){
+                            int blockPerSector = mifareTag.getBlockCountInSector(i);
+                            boolean authOK = false;
 
-                            if(mifareTag.authenticateSectorWithKeyA(i, MifareClassic.KEY_MIFARE_APPLICATION_DIRECTORY) ||
-                                    mifareTag.authenticateSectorWithKeyA(i, MifareClassic.KEY_DEFAULT) ||
-                                    mifareTag.authenticateSectorWithKeyA(i, MifareClassic.KEY_NFC_FORUM)) {
-                                isAuthenticated = true;
-                            }
+                            if( mifareTag.authenticateSectorWithKeyA(i, MifareClassic.KEY_MIFARE_APPLICATION_DIRECTORY) ||
+                                mifareTag.authenticateSectorWithKeyA(i, MifareClassic.KEY_DEFAULT) ||
+                                mifareTag.authenticateSectorWithKeyA(i, MifareClassic.KEY_NFC_FORUM))
+                                authOK = true;
                             else if(mifareTag.authenticateSectorWithKeyB(i, MifareClassic.KEY_MIFARE_APPLICATION_DIRECTORY) ||
                                     mifareTag.authenticateSectorWithKeyB(i, MifareClassic.KEY_DEFAULT) ||
-                                    mifareTag.authenticateSectorWithKeyB(i,MifareClassic.KEY_NFC_FORUM)){
-                                isAuthenticated = true;
-                            }
+                                    mifareTag.authenticateSectorWithKeyB(i, MifareClassic.KEY_NFC_FORUM))
+                                authOK = true;
                             else
-//                                Log.d("TAG", "Authorization denied ");
                                 Toast.makeText(this, "Authorization Denied! Unable to Write Card", Toast.LENGTH_SHORT).show();
 
-                            if(isAuthenticated) {
-                                //TODO: Investigate This (Probably Hardware Issue, try other phones
-                                int block_index = mifareTag.sectorToBlock(i);
+                            if(authOK)
+                                for(int x = 0; x < blockPerSector; x++)
+                                    mifareTag.writeBlock((i*blockPerSector) + x, savedData.get(i));
 
-                                //mifareTag.writeBlock(block_index, savedData.get(block_index));
-                                mifareTag.transceive(savedData.get(i));
-
-                            }
                         }
                     }
 
@@ -218,13 +209,6 @@ public class MainActivity extends AppCompatActivity {
         text.setText(builder.toString());
     }
 
-    // Open Settings to allow users to enable NFC
-    private void showWirelessSettings() {
-        Toast.makeText(this, "You need to enable NFC", Toast.LENGTH_SHORT).show();
-        Intent intent = new Intent(Settings.ACTION_WIRELESS_SETTINGS);
-        startActivity(intent);
-    }
-
     private String dumpTagData() {
         StringBuilder sb = new StringBuilder();
         byte[] id = cardTag.getId();
@@ -251,34 +235,35 @@ public class MainActivity extends AppCompatActivity {
 
                     try{
                         mifareTag.connect();
-                        int s_len = mifareTag.getSectorCount();
-                        if (mifareTag.isConnected()){
+                        int sectorCount = mifareTag.getSectorCount();
 
+                        if (mifareTag.isConnected()){
                             List<String> temp = new ArrayList<>();
                             JSONObject holder = new JSONObject();
 
-                            for(int i=0; i < s_len; i++){
-                                boolean isAuthenticated = false;
+                            for(int i = 0; i < sectorCount; i++){
+                                int blockPerSector = mifareTag.getBlockCountInSector(i);
+                                boolean authOK = false;
 
                                 if (mifareTag.authenticateSectorWithKeyA(i, MifareClassic.KEY_MIFARE_APPLICATION_DIRECTORY) ||
-                                        mifareTag.authenticateSectorWithKeyA(i, MifareClassic.KEY_DEFAULT) ||
-                                        mifareTag.authenticateSectorWithKeyA(i,MifareClassic.KEY_NFC_FORUM)){
-                                    isAuthenticated = true;
+                                    mifareTag.authenticateSectorWithKeyA(i, MifareClassic.KEY_DEFAULT) ||
+                                    mifareTag.authenticateSectorWithKeyA(i, MifareClassic.KEY_NFC_FORUM)){
+                                    authOK = true;
                                 }
                                 else if(mifareTag.authenticateSectorWithKeyB(i, MifareClassic.KEY_MIFARE_APPLICATION_DIRECTORY) ||
                                         mifareTag.authenticateSectorWithKeyB(i, MifareClassic.KEY_DEFAULT) ||
-                                        mifareTag.authenticateSectorWithKeyB(i,MifareClassic.KEY_NFC_FORUM)){
-                                    isAuthenticated = true;
+                                        mifareTag.authenticateSectorWithKeyB(i, MifareClassic.KEY_NFC_FORUM)){
+                                    authOK = true;
                                 }
                                 else
-//                                    Log.d("TAG", "Authorization denied ");
                                     Toast.makeText(this, "Authorization Denied! Unable to Read Card", Toast.LENGTH_SHORT).show();
 
-                                if(isAuthenticated) {
-                                    int block_index = mifareTag.sectorToBlock(i);
-                                    byte[] block = mifareTag.readBlock(block_index);
-                                    savedData.add(block);
-                                    temp.add(toHex(block));
+                                if(authOK) {
+                                    for(int x = 0; x < blockPerSector; x++){
+                                        byte[] block = mifareTag.readBlock((i*blockPerSector) + x);
+                                        savedData.add(block);
+                                        temp.add(toHex(block));
+                                    }
                                 }
                             }
 
@@ -316,6 +301,7 @@ public class MainActivity extends AppCompatActivity {
                             type = "Pro";
                             break;
                     }
+
                     sb.append("Mifare Classic type: ");
                     sb.append(type);
                     sb.append('\n');
@@ -339,6 +325,7 @@ public class MainActivity extends AppCompatActivity {
                 sb.append('\n');
                 MifareUltralight mifareUlTag = MifareUltralight.get(cardTag);
                 String type = "Unknown";
+
                 switch (mifareUlTag.getType()) {
                     case MifareUltralight.TYPE_ULTRALIGHT:
                         type = "Ultralight";
@@ -355,13 +342,18 @@ public class MainActivity extends AppCompatActivity {
         return sb.toString();
     }
 
+    // Open Settings to allow users to enable NFC
+    private void showWirelessSettings() {
+        Toast.makeText(this, "You need to enable NFC", Toast.LENGTH_SHORT).show();
+        Intent intent = new Intent(Settings.ACTION_WIRELESS_SETTINGS);
+        startActivity(intent);
+    }
+
     class sendToServer extends AsyncTask<JSONObject, String, String>{
         @Override
         protected String doInBackground(JSONObject... jsonObjects) {
             JSONObject payload = jsonObjects[0];
-
-            HttpURLConnection conn = null;
-            InputStream is = null;
+            HttpURLConnection conn  ;
 
             try{
                 URL url = new URL(target_server);
@@ -376,37 +368,12 @@ public class MainActivity extends AppCompatActivity {
                 bw.write("testing=" + payload.toString());
                 bw.flush();
                 bw.close();
-
                 out.close();
                 conn.connect();
-
-                if(conn.getResponseCode() == HttpURLConnection.HTTP_OK)
-                    is = conn.getInputStream();
-                else
-                    is = conn.getErrorStream();
-
             } catch (MalformedURLException eURL){
                 eURL.printStackTrace();
             } catch (IOException eIO){
                 eIO.printStackTrace();
-            }
-
-            try {
-                BufferedReader reader = new BufferedReader(new InputStreamReader(is, "UTF-8"), 8);
-
-                StringBuilder sb = new StringBuilder();
-                String line;
-
-                while ((line = reader.readLine()) != null)
-                    sb.append(line + "\n");
-
-                is.close();
-                String response = sb.toString();
-            } catch (Exception e) {
-                Log.e("Buffer Error", "Error converting result " + e.toString());
-            } finally {
-                if(conn != null)
-                    conn.disconnect();
             }
 
             return null;
