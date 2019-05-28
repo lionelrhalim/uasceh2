@@ -183,11 +183,9 @@ public class MainActivity extends AppCompatActivity {
                                 //TODO: Investigate This (Probably Hardware Issue, try other phones
                                 int block_index = mifareTag.sectorToBlock(i);
 
-                                Log.d("TEST", savedData.get(block_index).toString());
-
-                                mifareTag.writeBlock(block_index, savedData.get(block_index));
-//                                mifareTag.transceive(savedData.get(block_index));
-                                Log.d("DATA", "written " + savedData.get(block_index).toString() + " to block " + block_index);
+                                mifareTag.writeBlock(i, savedData.get(i));
+//                                mifareTag.transceive(savedData.get(i));
+                                Log.d("DATA", "written " + savedData.get(i).toString() + " to block " + i);
                             }
                         }
                     }
