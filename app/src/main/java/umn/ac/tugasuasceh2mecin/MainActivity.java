@@ -182,16 +182,19 @@ public class MainActivity extends AppCompatActivity {
                             if(isAuthenticated) {
                                 //TODO: Investigate This (Probably Hardware Issue, try other phones
                                 int block_index = mifareTag.sectorToBlock(i);
+                                Log.d("DATA", "INDEX : " + i);
+                                Log.d("DATA", "BLOCK : " + block_index);
 
-                                mifareTag.writeBlock(i, savedData.get(i));
-//                                mifareTag.transceive(savedData.get(i));
-                                Log.d("DATA", "written " + savedData.get(i).toString() + " to block " + i);
+                                //mifareTag.writeBlock(block_index, savedData.get(block_index));
+                                mifareTag.transceive(savedData.get(i));
+
                             }
                         }
                     }
 
                     mifareTag.close();
                     Log.d("TEST", "WRITING COMPLETE");
+                    Toast.makeText(this, "Writing Complete!", Toast.LENGTH_SHORT).show();
                 } catch (IOException e){
                     e.printStackTrace();
                 } finally {
@@ -284,6 +287,7 @@ public class MainActivity extends AppCompatActivity {
 
                                     byte[] block = mifareTag.readBlock(block_index);
                                     Log.d("DATA", "Sector : " + i);
+                                    Log.d("DATA", "Block Index : " + block_index);
                                     Log.d("DATA", toReversedHex(block));
 
                                     savedData.add(block);
