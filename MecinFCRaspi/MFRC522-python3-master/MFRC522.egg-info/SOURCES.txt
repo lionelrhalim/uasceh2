@@ -1,0 +1,8 @@
+setup.py
+MFRC522/MFRC522.py
+MFRC522/__init__.py
+MFRC522.egg-info/PKG-INFO
+MFRC522.egg-info/SOURCES.txt
+MFRC522.egg-info/dependency_links.txt
+MFRC522.egg-info/requires.txt
+MFRC522.egg-info/top_level.txt
