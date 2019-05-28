@@ -2,20 +2,17 @@ package umn.ac.tugasuasceh2mecin;
 
 import android.app.PendingIntent;
 import android.content.Intent;
-import android.nfc.FormatException;
 import android.nfc.NdefMessage;
 import android.nfc.NdefRecord;
 import android.nfc.NfcAdapter;
 import android.nfc.Tag;
 import android.nfc.tech.MifareClassic;
 import android.nfc.tech.MifareUltralight;
-import android.nfc.tech.*;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.Parcelable;
 import android.provider.Settings;
 import android.support.v7.app.AppCompatActivity;
-import android.util.ArrayMap;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
@@ -156,9 +153,7 @@ public class MainActivity extends AppCompatActivity {
 
                 try{
                     mifareTag.connect();
-                    Log.d("TEST", String.valueOf(mifareTag.isConnected()));
                     if (mifareTag.isConnected()){
-                        Log.d("TEST", "CONNECTED, WRITING ...");
                         int s_len = mifareTag.getSectorCount();
 
                         for(int i = 0; i < s_len; i++){
@@ -168,22 +163,19 @@ public class MainActivity extends AppCompatActivity {
                                     mifareTag.authenticateSectorWithKeyA(i, MifareClassic.KEY_DEFAULT) ||
                                     mifareTag.authenticateSectorWithKeyA(i, MifareClassic.KEY_NFC_FORUM)) {
                                 isAuthenticated = true;
-                                Log.d("TEST", "Authenticated with Key A");
                             }
                             else if(mifareTag.authenticateSectorWithKeyB(i, MifareClassic.KEY_MIFARE_APPLICATION_DIRECTORY) ||
                                     mifareTag.authenticateSectorWithKeyB(i, MifareClassic.KEY_DEFAULT) ||
                                     mifareTag.authenticateSectorWithKeyB(i,MifareClassic.KEY_NFC_FORUM)){
                                 isAuthenticated = true;
-                                Log.d("TEST", "Authenticated with Key B");
                             }
                             else
-                                Log.d("TAG", "Authorization denied ");
+//                                Log.d("TAG", "Authorization denied ");
+                                Toast.makeText(this, "Authorization Denied! Unable to Write Card", Toast.LENGTH_SHORT).show();
 
                             if(isAuthenticated) {
                                 //TODO: Investigate This (Probably Hardware Issue, try other phones
                                 int block_index = mifareTag.sectorToBlock(i);
-                                Log.d("DATA", "INDEX : " + i);
-                                Log.d("DATA", "BLOCK : " + block_index);
 
                                 //mifareTag.writeBlock(block_index, savedData.get(block_index));
                                 mifareTag.transceive(savedData.get(i));
@@ -193,7 +185,6 @@ public class MainActivity extends AppCompatActivity {
                     }
 
                     mifareTag.close();
-                    Log.d("TEST", "WRITING COMPLETE");
                     Toast.makeText(this, "Writing Complete!", Toast.LENGTH_SHORT).show();
                 } catch (IOException e){
                     e.printStackTrace();
@@ -280,18 +271,13 @@ public class MainActivity extends AppCompatActivity {
                                     isAuthenticated = true;
                                 }
                                 else
-                                    Log.d("TAG", "Authorization denied ");
+//                                    Log.d("TAG", "Authorization denied ");
+                                    Toast.makeText(this, "Authorization Denied! Unable to Read Card", Toast.LENGTH_SHORT).show();
 
                                 if(isAuthenticated) {
                                     int block_index = mifareTag.sectorToBlock(i);
-
                                     byte[] block = mifareTag.readBlock(block_index);
-                                    Log.d("DATA", "Sector : " + i);
-                                    Log.d("DATA", "Block Index : " + block_index);
-                                    Log.d("DATA", toReversedHex(block));
-
                                     savedData.add(block);
-
                                     temp.add(toHex(block));
                                 }
                             }
@@ -301,7 +287,6 @@ public class MainActivity extends AppCompatActivity {
                             holder.put("blockCount", mifareTag.getBlockCount());
                             holder.put("data", new JSONArray(temp));
 
-                            Log.d("JSON", holder.toString());
                             new sendToServer().execute(holder);
                         }
 
@@ -393,18 +378,12 @@ public class MainActivity extends AppCompatActivity {
                 bw.close();
 
                 out.close();
-
                 conn.connect();
 
-                Log.d("TEST", conn.getResponseCode() + " : " + conn.getResponseMessage());
-
-                if(conn.getResponseCode() == HttpURLConnection.HTTP_OK){
-                    Log.d("TEST", "Input Stream Get!");
+                if(conn.getResponseCode() == HttpURLConnection.HTTP_OK)
                     is = conn.getInputStream();
-                } else {
-                    Log.d("TEST", "ERROR STREAM!");
+                else
                     is = conn.getErrorStream();
-                }
 
             } catch (MalformedURLException eURL){
                 eURL.printStackTrace();
@@ -413,13 +392,14 @@ public class MainActivity extends AppCompatActivity {
             }
 
             try {
-                BufferedReader reader = new BufferedReader(new InputStreamReader(
-                        is, "UTF-8"), 8);
+                BufferedReader reader = new BufferedReader(new InputStreamReader(is, "UTF-8"), 8);
+
                 StringBuilder sb = new StringBuilder();
-                String line = "";
-                while ((line = reader.readLine()) != null) {
+                String line;
+
+                while ((line = reader.readLine()) != null)
                     sb.append(line + "\n");
-                }
+
                 is.close();
                 String response = sb.toString();
             } catch (Exception e) {
@@ -428,7 +408,6 @@ public class MainActivity extends AppCompatActivity {
                 if(conn != null)
                     conn.disconnect();
             }
-
 
             return null;
         }
@@ -448,20 +427,6 @@ public class MainActivity extends AppCompatActivity {
         return sb.toString();
     }
 
-    private String toReversedHex(byte[] bytes) {
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < bytes.length; ++i) {
-            if (i > 0) {
-                sb.append(" ");
-            }
-            int b = bytes[i] & 0xff;
-            if (b < 0x10)
-                sb.append('0');
-            sb.append(Integer.toHexString(b));
-        }
-        return sb.toString();
-    }
-
     private long toDec(byte[] bytes) {
         long result = 0;
         long factor = 1;
@@ -472,5 +437,4 @@ public class MainActivity extends AppCompatActivity {
         }
         return result;
     }
-
 }
