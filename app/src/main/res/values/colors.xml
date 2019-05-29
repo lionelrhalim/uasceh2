@@ -1,6 +1,58 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+
+    <!-- Color -->
+    <color name="hot_pink">#FF65a5</color>
+    <color name="brink_pink">#FF6A92</color>
+    <color name="orange_pink">#FF7381</color>
+    <color name="salmon">#FF7D72</color>
+    <color name="hot_orange">#FF8965</color>
+    <color name="bittersweet">#F7775D</color>
+
+    <color name="azalea">#F7C6D2</color>
+    <color name="cabaret">#CE3A77</color>
+
+    <color name="mine_shaft">#333333</color>
+    <color name="white">#FFFFFF</color>
+    <color name="black">#000000</color>
+    <color name="gallery">#DDDDDD</color>
+
+
+
+    <!-- Colors Variable -->
     <color name="colorPrimary">#6BB2D7</color>
     <color name="colorPrimaryDark">#7073b0</color>
     <color name="colorAccent">#7d53a1</color>
+
+    <color name="colorHeading_1">@color/white</color>
+    <color name="colorHeading_2">@color/hot_orange</color>
+    <color name="colorHeading_3">@color/brink_pink</color>
+    <color name="colorHeading_4">#636363</color>
+
+    <color name="colorParagraph_1">@color/white</color>
+    <color name="colorParagraph_2">@color/hot_orange</color>
+    <color name="colorParagraph_3">@color/brink_pink</color>
+    <color name="colorParagraph_4">@color/mine_shaft</color>
+
+    <color name="colorBorderLight">#F1F1F1</color>
+
+
+    <!-- dots inactive colors -->
+    <color name="dot_dark_screen1">@color/cabaret</color>
+    <color name="dot_dark_screen2">@color/cabaret</color>
+
+    <!-- dots active colors -->
+    <color name="dot_light_screen1">@color/white</color>
+    <color name="dot_light_screen2">@color/white</color>
+
+    <array name="array_dot_active">
+        <item>@color/dot_light_screen1</item>
+        <item>@color/dot_light_screen2</item>
+    </array>
+
+    <array name="array_dot_inactive">
+        <item>@color/dot_dark_screen1</item>
+        <item>@color/dot_dark_screen2</item>
+    </array>
+
 </resources>
