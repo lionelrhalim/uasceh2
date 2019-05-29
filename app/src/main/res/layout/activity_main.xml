@@ -19,8 +19,11 @@
         android:layout_marginTop="50dp"
         android:gravity="center_horizontal" />
 
+
     <Button
         android:id="@+id/btnWrite"
+        style="@style/Button_Primary"
+        android:background="@drawable/background02"
         android:layout_width="132dp"
         android:layout_height="65dp"
         android:layout_below="@+id/text"
