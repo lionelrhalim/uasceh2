@@ -24,14 +24,15 @@
         android:id="@+id/btnWrite"
         style="@style/Button_Primary"
         android:background="@drawable/background02"
-        android:layout_width="132dp"
+        android:layout_width="150dp"
         android:layout_height="65dp"
         android:layout_below="@+id/text"
         android:layout_alignParentStart="true"
         android:layout_alignParentEnd="true"
-        android:layout_marginStart="142dp"
+        android:textSize="18sp"
+        android:layout_marginStart="120dp"
         android:layout_marginTop="70dp"
-        android:layout_marginEnd="137dp"
+        android:layout_marginEnd="120dp"
         android:text="Switch to Write Mode" />
 
 </RelativeLayout>
